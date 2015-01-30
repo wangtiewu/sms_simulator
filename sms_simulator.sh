@@ -17,7 +17,7 @@ WORK_DIR=.
 #设置lib库目录
 EXTEN_LIB_HOME=$WORK_DIR/lib
 #设置执行类库目录
-CLASS_DIR=$WORK_DIR/classes
+CLASS_DIR=$WORK_DIR/bin
 #设置path路径分隔符
 PATH_SPLIT=:
 #设置java路径
