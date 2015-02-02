@@ -104,4 +104,9 @@ public class SmsSimulatorConfigure {
 		}
 		return Integer.parseInt(val);
 	}
+
+	public static String getServerType() {
+		// TODO Auto-generated method stub
+		return properties.getProperty("sms.server.type", "cmpp");
+	}
 }

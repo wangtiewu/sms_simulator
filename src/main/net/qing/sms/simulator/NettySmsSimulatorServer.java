@@ -28,18 +28,11 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
-import io.netty.handler.codec.http.HttpObjectAggregator;
-import io.netty.handler.codec.http.HttpRequestDecoder;
-import io.netty.handler.codec.http.HttpResponseEncoder;
-import io.netty.handler.stream.ChunkedWriteHandler;
-import io.netty.handler.timeout.IdleStateHandler;
 
 import java.net.InetSocketAddress;
-import java.util.Collection;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 import net.qing.sms.simulator.cmpp.CMPPDecoder;
+import net.qing.sms.simulator.sgip.SGIPDecoder;
 import eet.evar.tool.logger.Logger;
 import eet.evar.tool.logger.LoggerFactory;
 
@@ -79,13 +72,22 @@ public class NettySmsSimulatorServer {
 		if (configuration.isUseLinuxNativeEpoll()) {
 			channelClass = EpollServerSocketChannel.class;
 		}
-
 		ServerBootstrap b = new ServerBootstrap();
-		b.group(bossGroup, workerGroup)
-				.channel(channelClass)
-				.childHandler(
-						new CMPPSimulatorChannelInitializer(serverStartTime, scheduler,
-								configuration.getPingTimeout()));
+		if (configuration.getServerType().equals("sgip")) {
+			b.group(bossGroup, workerGroup)
+					.channel(channelClass)
+					.childHandler(
+							new SGIPSimulatorChannelInitializer(
+									serverStartTime, scheduler, configuration
+											.getPingTimeout()));
+		} else {
+			b.group(bossGroup, workerGroup)
+					.channel(channelClass)
+					.childHandler(
+							new CMPPSimulatorChannelInitializer(
+									serverStartTime, scheduler, configuration
+											.getPingTimeout()));
+		}
 		applyConnectionOptions(b);
 		InetSocketAddress addr = new InetSocketAddress(configuration.getPort());
 		if (configuration.getHostname() != null) {
@@ -112,9 +114,31 @@ public class NettySmsSimulatorServer {
 		public void initChannel(SocketChannel ch) throws Exception {
 			ch.pipeline().addLast(
 					"frameDecoder",
-					new LengthFieldBasedFrameDecoder(1024 * 1024 * 1024, 0, 4, -4, 0));
+					new LengthFieldBasedFrameDecoder(1024 * 1024 * 1024, 0, 4,
+							-4, 0));
 			ch.pipeline().addLast("userDecoder", new CMPPDecoder());
 			ch.pipeline().addLast(cmppSimulatorInboundHandler);
+		}
+	}
+
+	class SGIPSimulatorChannelInitializer extends
+			ChannelInitializer<SocketChannel> {
+		private ChannelHandler sgipSimulatorInboundHandler = null;
+
+		public SGIPSimulatorChannelInitializer(long serverStartTime,
+				CancelableScheduler scheduler, int pingTimeout) {
+			sgipSimulatorInboundHandler = new SGIPSimulatorHandler(
+					serverStartTime, scheduler, configuration.getPingTimeout());
+		}
+
+		@Override
+		public void initChannel(SocketChannel ch) throws Exception {
+			ch.pipeline().addLast(
+					"frameDecoder",
+					new LengthFieldBasedFrameDecoder(1024 * 1024 * 1024, 0, 4,
+							-4, 0));
+			ch.pipeline().addLast("userDecoder", new SGIPDecoder());
+			ch.pipeline().addLast(sgipSimulatorInboundHandler);
 		}
 	}
 

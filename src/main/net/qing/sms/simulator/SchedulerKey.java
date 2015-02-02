@@ -19,7 +19,7 @@ import java.util.UUID;
 
 public class SchedulerKey {
 
-    public enum Type {STATUS_REPORT};
+    public enum Type {STATUS_REPORT, DELIVERY};
 
     private final Type type;
     private final String sessionId;

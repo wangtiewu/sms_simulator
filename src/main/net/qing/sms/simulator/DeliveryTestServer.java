@@ -1,6 +1,13 @@
 package net.qing.sms.simulator;
 
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
+import java.net.URL;
+import java.net.URLDecoder;
+import java.util.Properties;
 
 import eet.evar.StringDeal;
 import io.netty.bootstrap.ServerBootstrap;
@@ -51,7 +58,9 @@ public class DeliveryTestServer {
 			workerGroup.shutdownGracefully();
 			bossGroup.shutdownGracefully();
 		}
+		
 	}
+	
 
 	public static void main(String[] args) throws Exception {
 		int port;
@@ -95,7 +104,13 @@ class DeliveryTestServerHandler extends ChannelInboundHandlerAdapter { // (1)
 		String dest = ta[1];
 		int idx = t.indexOf(dest);
 		String content = t.substring(idx+dest.length()+1);
-		CMPP2SimulatorHandler.sendDelivery(from, dest, content);
+		String serverType = getProperties().getProperty("sms.server.type", "cmpp");
+		if (serverType.equals("cmpp")) {
+			CMPP2SimulatorHandler.sendDelivery(from, dest, content);
+		}
+		else {
+			SGIPSimulatorHandler.sendDelivery(from, dest, content);
+		}
 		ByteBuf byteBuf = ctx.alloc().buffer();
 		byteBuf.writeBytes("ok!\n".getBytes());
 		ctx.writeAndFlush(byteBuf);
@@ -107,5 +122,45 @@ class DeliveryTestServerHandler extends ChannelInboundHandlerAdapter { // (1)
 		// Close the connection when an exception is raised.
 		cause.printStackTrace();
 		ctx.close();
+	}
+	
+	private static Properties getProperties() {
+		InputStream is = null;
+		try {
+			String configFile = "sms.properties";
+			URL url = SmsSimulatorConfigure.class.getResource('/' + configFile);
+			if (url == null) {
+				System.out.println("配置文件不存在：" + configFile);
+				return null;
+			}
+			try {
+				is = new FileInputStream(URLDecoder.decode(url.getFile(),
+						"UTF-8"));
+			} catch (UnsupportedEncodingException e1) {
+				// TODO Auto-generated catch block
+				e1.printStackTrace();
+			}
+			Properties properties = new Properties();
+			try {
+				properties.load(is);
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			return properties;
+		} catch (FileNotFoundException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} finally {
+			if (is != null) {
+				try {
+					is.close();
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			}
+		}
+		return null;
 	}
 }

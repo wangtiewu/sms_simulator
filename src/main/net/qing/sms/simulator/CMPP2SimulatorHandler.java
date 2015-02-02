@@ -31,9 +31,9 @@ import net.qing.sms.simulator.cmpp.CMPPDelivery;
 import net.qing.sms.simulator.cmpp.CMPPHeader;
 import net.qing.sms.simulator.cmpp.CMPPSubmit;
 import net.qing.sms.simulator.cmpp.CMPPSubmitResp;
-import net.qing.sms.simulator.cmpp.CMPPTerminate;
 import net.qing.sms.simulator.cmpp.CMPPTerminateResp;
 import net.qing.sms.simulator.cmpp.ErrorCode;
+import net.qing.sms.simulator.cmpp.CMPPSendDelivery;
 import eet.evar.StringDeal;
 import eet.evar.base.DataFormatDeal;
 import eet.evar.tool.MD5;
@@ -101,8 +101,9 @@ public class CMPP2SimulatorHandler extends ChannelInboundHandlerAdapter {
 		}
 		return null;
 	}
-	
-	public static void sendDelivery(String srcNumber, String destNumber, String content) {
+
+	public static void sendDelivery(String srcNumber, String destNumber,
+			String content) {
 		deliverQueue.add(new DeliveryReq(srcNumber, destNumber, content));
 	}
 
@@ -113,7 +114,9 @@ public class CMPP2SimulatorHandler extends ChannelInboundHandlerAdapter {
 	public void channelRead(ChannelHandlerContext ctx, Object msg)
 			throws Exception {
 		if (msg instanceof CMPPHeader) {
-			logger.info("收到消息:" + JacksonUtils.beanToJson(msg));
+			if (logger.isInfoEnabled()) {
+				logger.info("收到消息:" + JacksonUtils.beanToJson(msg));
+			}
 			CMPPHeader cmppHeader = (CMPPHeader) msg;
 			switch (cmppHeader.getId()) {
 			case CMPPHeader.CMPP_CONNECT:
@@ -173,15 +176,16 @@ public class CMPP2SimulatorHandler extends ChannelInboundHandlerAdapter {
 						return;
 					}
 				}
-				int configedConnections = Integer.parseInt(smsProperties.getProperty("cmpp.client.connections", "1"));
-				int curConnections = connections.get(configedICPId)==null?0:connections.get(configedICPId);
+				int configedConnections = Integer.parseInt(smsProperties
+						.getProperty("cmpp.client.connections", "1"));
+				int curConnections = connections.get(configedICPId) == null ? 0
+						: connections.get(configedICPId);
 				if (curConnections >= configedConnections) {
 					CMPPConnectResp cmppConnectResp = new CMPPConnectResp(
 							cmppHeader.getSeq());
 					cmppConnectResp.setStatus(5);
-					cmppConnectResp.setVersion(Integer
-							.parseInt(smsProperties
-									.getProperty("cmpp.version")));
+					cmppConnectResp.setVersion(Integer.parseInt(smsProperties
+							.getProperty("cmpp.version")));
 					respMsg(false, ctx, cmppConnectResp);
 					return;
 				}
@@ -202,9 +206,10 @@ public class CMPP2SimulatorHandler extends ChannelInboundHandlerAdapter {
 				cmppConnectResp.setVersion(cmppConnect.getVersion());
 				respMsg(ctx, cmppConnectResp);
 				ctx.channel().attr(ICP_ID).set(configedICPId);
-				connections.put(configedICPId, curConnections+1);
+				connections.put(configedICPId, curConnections + 1);
 				CancelableScheduler statusDeliveryScheduler = new HashedWheelScheduler();
-				statusDeliverySchedulers.put(getIpAndPort(ctx.channel().remoteAddress()), statusDeliveryScheduler);
+				statusDeliverySchedulers.put(getIpAndPort(ctx.channel()
+						.remoteAddress()), statusDeliveryScheduler);
 				break;
 			case CMPPHeader.CMPP_ACTIVE_TEST:
 				respMsg(ctx, new CMPPActiveTestResp(cmppHeader.getSeq()));
@@ -237,18 +242,30 @@ public class CMPP2SimulatorHandler extends ChannelInboundHandlerAdapter {
 					respMsg(false, ctx, resp);
 					return;
 				}
-				CMPPSubmitResp submitResp = new CMPPSubmitResp(cmppHeader.getSeq());
+				CMPPSubmitResp submitResp = new CMPPSubmitResp(
+						cmppHeader.getSeq());
 				respMsg(ctx, submitResp);
 				if (submit.getRegisteredDelivery() == 1) {
-					//需要状态报告
-					CancelableScheduler statusDeliveryScheduler1 = statusDeliverySchedulers.get(getIpAndPort(ctx.channel().remoteAddress()));
-					statusDeliveryScheduler1.schedule(new SchedulerKey(Type.STATUS_REPORT, ""+cmppHeader.getSeq()) , new SendDelivery(ctx, submitResp.getMsgId(), submit.getSrcId(), submit.getDestTerminalId(), submit.getServiceId()), 5, TimeUnit.SECONDS);
+					// 需要状态报告
+					CancelableScheduler statusDeliveryScheduler1 = statusDeliverySchedulers
+							.get(getIpAndPort(ctx.channel().remoteAddress()));
+					statusDeliveryScheduler1
+							.schedule(
+									new SchedulerKey(Type.STATUS_REPORT, ""
+											+ cmppHeader.getSeq()),
+									new CMPPSendDelivery(ctx,
+											submitResp.getMsgId(), submit
+													.getSrcId(), submit
+													.getDestTerminalId(),
+											submit.getServiceId()), 5,
+									TimeUnit.SECONDS);
 				}
 				break;
 			case CMPPHeader.CMPP_DELIVER_RESP:
 				break;
 			case CMPPHeader.CMPP_TERMINATE:
-				CMPPTerminateResp cmppTerminateResp = new CMPPTerminateResp(cmppHeader.getSeq());
+				CMPPTerminateResp cmppTerminateResp = new CMPPTerminateResp(
+						cmppHeader.getSeq());
 				respMsgAndClose(ctx, cmppTerminateResp);
 				break;
 			default:
@@ -273,8 +290,9 @@ public class CMPP2SimulatorHandler extends ChannelInboundHandlerAdapter {
 			ByteBuf byteBuf = ctx.alloc().buffer();
 			delivery.incode(byteBuf);
 			ctx.writeAndFlush(byteBuf);
-			logger.info("发送消息: "
-					+ JacksonUtils.beanToJson(delivery));
+			if (logger.isInfoEnabled()) {
+				logger.info("发送消息: " + JacksonUtils.beanToJson(delivery));
+			}
 		}
 	}
 
@@ -309,7 +327,7 @@ public class CMPP2SimulatorHandler extends ChannelInboundHandlerAdapter {
 	private void respMsg(ChannelHandlerContext ctx, CMPPHeader respMsg) {
 		respMsg(true, ctx, respMsg);
 	}
-	
+
 	private void respMsgAndClose(ChannelHandlerContext ctx, CMPPHeader respMsg) {
 		ByteBuf byteBuf = ctx.alloc().buffer();
 		respMsg.incode(byteBuf);
@@ -323,12 +341,13 @@ public class CMPP2SimulatorHandler extends ChannelInboundHandlerAdapter {
 		respMsg.incode(byteBuf);
 		ctx.writeAndFlush(byteBuf);
 		if (success) {
-			logger.info("响应消息{成功}: "
-					+ JacksonUtils.beanToJson(respMsg));
-		}
-		else {
-			logger.error("响应消息{失败}: "
-					+ JacksonUtils.beanToJson(respMsg));
+			if (logger.isInfoEnabled()) {
+				logger.info("响应消息{成功}: " + JacksonUtils.beanToJson(respMsg));
+			}
+		} else {
+			if (logger.isInfoEnabled()) {
+				logger.error("响应消息{失败}: " + JacksonUtils.beanToJson(respMsg));
+			}
 		}
 	}
 
@@ -366,37 +385,6 @@ public class CMPP2SimulatorHandler extends ChannelInboundHandlerAdapter {
 		}
 		return "";
 	}
-	
-	class SendDelivery implements Runnable {
-		private byte[] msgId;
-		private ChannelHandlerContext ctx;
-		private String srcId;
-		private String destId;
-		private String serviceId;
-
-		public SendDelivery(ChannelHandlerContext ctx, byte[] msgId, String srcId, String destId, String serviceId) {
-			this.ctx = ctx;
-			this.msgId = msgId;
-			this.srcId = srcId;
-			this.destId = destId;
-			this.serviceId = serviceId;
-		}
-		
-		@Override
-		public void run() {
-			// TODO Auto-generated method stub
-			CMPPDelivery delivery = new CMPPDelivery(true);
-			delivery.setMsgId(msgId);
-			delivery.setDestId(srcId);
-			delivery.setServiceId(serviceId);
-			delivery.setSrcTerminalId(destId);
-			ByteBuf byteBuf = ctx.alloc().buffer();
-			delivery.incode(byteBuf);
-			ctx.writeAndFlush(byteBuf);
-			logger.info("发送消息: "
-					+ JacksonUtils.beanToJson(delivery));
-		}
-	}
 }
 
 class DeliveryReq {
@@ -406,7 +394,7 @@ class DeliveryReq {
 
 	public DeliveryReq(String srcNumber, String destNumber, String content) {
 		this.srcNumber = srcNumber;
-		this.destNumber= destNumber;
+		this.destNumber = destNumber;
 		this.content = content;
 	}
 
@@ -433,7 +421,5 @@ class DeliveryReq {
 	public void setContent(String content) {
 		this.content = content;
 	}
-	
+
 }
-
-

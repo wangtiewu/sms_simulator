@@ -57,6 +57,7 @@ public class Configuration {
     private boolean addVersionHeader = true;
 
     private String origin;
+	private String serverType;
 
     public Configuration() {
     }
@@ -397,6 +398,16 @@ public class Configuration {
     public String getSSLProtocol() {
         return sslProtocol;
     }
+
+	public String getServerType() {
+		// TODO Auto-generated method stub
+		return serverType;
+	}
+	
+	public void setServerType(String serverType) {
+		// TODO Auto-generated method stub
+		this.serverType = serverType;
+	}
 
 
 }

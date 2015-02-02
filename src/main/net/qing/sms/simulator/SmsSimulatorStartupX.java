@@ -34,6 +34,7 @@ public class SmsSimulatorStartupX {
 		Configuration config = new Configuration();
 		config.setHostname(SmsSimulatorConfigure.getCometServerIp());
 		config.setPort(SmsSimulatorConfigure.getCometServerPort());
+		config.setServerType(SmsSimulatorConfigure.getServerType());
 		config.setPingInterval(SmsSimulatorConfigure.getPingInterval());
 		config.setPingTimeout(SmsSimulatorConfigure.getPingTimeout());
 		SocketConfig socketConfig = new SocketConfig();
