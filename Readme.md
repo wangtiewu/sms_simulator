@@ -1,6 +1,6 @@
 # sms_simulator
 
-sms_simulator is an Open-Source software,this time it supports China CMPP's ISMG function.SP can use this simulator to test.
+sms_simulator is a short message service's simulator,this time it supports China CMPP's ISMG function.SP can use this simulator to test s.
 
 ## China CMPP Features
 
