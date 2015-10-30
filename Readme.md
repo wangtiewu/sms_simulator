@@ -1,6 +1,6 @@
 # sms_simulator
 
-sms_simulator is a short message service's simulator,this time it supports China CMPP's ISMG function.SP can use this simulator to test s.
+sms_simulator is a short message service's simulator,this time it supports China CMPP's ISMG function.SP can use this simulator for test.
 
 ## China CMPP Features
 
