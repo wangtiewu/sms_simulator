@@ -7,9 +7,13 @@ sms_simulator is a short message service's simulator,this time it supports China
 * Supports CMPP's connect,submit,delivery,active_test,terminate instrucs.
 * Supports IP limits,Connections limits,Rate-limits advinced functions.
 
-## Download
+## Configure
 
-There are some compiled binary installation packages on github at 
+* See bin/sms.properties 
 
-## Document
+## Run
+
+* On Linux, sms_simulator.sh start
+* On Windows, sms_simulator.bat  
+
 
