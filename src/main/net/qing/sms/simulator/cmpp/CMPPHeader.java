@@ -1,5 +1,7 @@
 package net.qing.sms.simulator.cmpp;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 import io.netty.buffer.ByteBuf;
 
 public abstract class CMPPHeader {
@@ -42,7 +44,7 @@ public abstract class CMPPHeader {
 
 	public static final int CMPP_MO_ROUTE_UPDATE_RESP = 0x80000011;
 	
-	private static volatile int _seq = 0;
+	private static  AtomicInteger _seq = new AtomicInteger(0);
 
 	private int len;
 	private int id;
@@ -79,10 +81,7 @@ public abstract class CMPPHeader {
 	}
 
 	public int createSeq() {
-		if (_seq >= MAX_SEQ) {
-			_seq = 0;
-		}
-		seq = _seq++;
+		seq = _seq.incrementAndGet();
 		return seq;
 	}
 

@@ -46,6 +46,11 @@ public class SGIPDecoder extends MessageToMessageDecoder<ByteBuf> {
 			deliveryResp.decode(arg1);
 			arg2.add(deliveryResp);
 			break;
+		case SGIPHeader.SGIP_UNBIND:
+			SGIPUnbind unbind = new SGIPUnbind(seq);
+			unbind.decode(arg1);
+			arg2.add(unbind);
+			break;
 		default:
 			logger.error("未知的命令id："+id);
 		}

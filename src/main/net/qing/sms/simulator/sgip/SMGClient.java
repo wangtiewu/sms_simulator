@@ -194,11 +194,14 @@ public class SMGClient {
 	}
 
 	private String getSPHost() {
-		return "10.0.65.13";
+		return smsProperties.getProperty("sgip.client.ip");
 	}
 
 	private int getSPPort() {
-		return 7777;
+		if (smsProperties.getProperty("sgip.client.port") == null || smsProperties.getProperty("sgip.client.port").equals("")) {
+			return 8801;
+		}
+		return Integer.parseInt(smsProperties.getProperty("sgip.client.port"));
 	}
 
 	class SMGClientHandler extends ChannelInboundHandlerAdapter {

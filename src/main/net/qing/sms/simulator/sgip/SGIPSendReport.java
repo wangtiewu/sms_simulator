@@ -19,7 +19,7 @@ public class SGIPSendReport extends SGIPMoMsg implements Runnable{
 	@Override
 	public void run() {
 		// TODO Auto-generated method stub
-		SGIPReport report = new SGIPReport(SGIPHeader.createSeq());
+		SGIPReport report = new SGIPReport(msgId);
 		report.setState(state);
 		report.setUserNumber(destId);
 		report.setReportType(0);

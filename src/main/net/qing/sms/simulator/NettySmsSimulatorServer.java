@@ -32,6 +32,7 @@ import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import java.net.InetSocketAddress;
 
 import net.qing.sms.simulator.cmpp.CMPPDecoder;
+import net.qing.sms.simulator.cmpp3.CMPP3Decoder;
 import net.qing.sms.simulator.sgip.SGIPDecoder;
 import eet.evar.tool.logger.Logger;
 import eet.evar.tool.logger.LoggerFactory;
@@ -80,13 +81,23 @@ public class NettySmsSimulatorServer {
 							new SGIPSimulatorChannelInitializer(
 									serverStartTime, scheduler, configuration
 											.getPingTimeout()));
-		} else {
+		} else if (configuration.getServerType().equals("cmpp")) {
 			b.group(bossGroup, workerGroup)
 					.channel(channelClass)
 					.childHandler(
 							new CMPPSimulatorChannelInitializer(
 									serverStartTime, scheduler, configuration
 											.getPingTimeout()));
+		} else if (configuration.getServerType().equals("cmpp3")) {
+			b.group(bossGroup, workerGroup)
+					.channel(channelClass)
+					.childHandler(
+							new CMPP3SimulatorChannelInitializer(
+									serverStartTime, scheduler, configuration
+											.getPingTimeout()));
+		} else {
+			log.error("不支持的协议类型：" + configuration.getServerType());
+			System.exit(-1);
 		}
 		applyConnectionOptions(b);
 		InetSocketAddress addr = new InetSocketAddress(configuration.getPort());
@@ -118,6 +129,27 @@ public class NettySmsSimulatorServer {
 							-4, 0));
 			ch.pipeline().addLast("userDecoder", new CMPPDecoder());
 			ch.pipeline().addLast(cmppSimulatorInboundHandler);
+		}
+	}
+
+	class CMPP3SimulatorChannelInitializer extends
+			ChannelInitializer<SocketChannel> {
+		private ChannelHandler cmpp3SimulatorInboundHandler = null;
+
+		public CMPP3SimulatorChannelInitializer(long serverStartTime,
+				CancelableScheduler scheduler, int pingTimeout) {
+			cmpp3SimulatorInboundHandler = new CMPP3SimulatorHandler(
+					serverStartTime, scheduler, configuration.getPingTimeout());
+		}
+
+		@Override
+		public void initChannel(SocketChannel ch) throws Exception {
+			ch.pipeline().addLast(
+					"frameDecoder",
+					new LengthFieldBasedFrameDecoder(1024 * 1024 * 1024, 0, 4,
+							-4, 0));
+			ch.pipeline().addLast("userDecoder", new CMPP3Decoder());
+			ch.pipeline().addLast(cmpp3SimulatorInboundHandler);
 		}
 	}
 

@@ -108,6 +108,9 @@ class DeliveryTestServerHandler extends ChannelInboundHandlerAdapter { // (1)
 		if (serverType.equals("cmpp")) {
 			CMPP2SimulatorHandler.sendDelivery(from, dest, content);
 		}
+		else if (serverType.equals("cmpp3")) {
+			CMPP3SimulatorHandler.sendDelivery(from, dest, content);
+		}
 		else {
 			SGIPSimulatorHandler.sendDelivery(from, dest, content);
 		}

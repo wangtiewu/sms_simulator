@@ -8,6 +8,7 @@ import java.io.UnsupportedEncodingException;
 import java.net.URL;
 import java.net.URLDecoder;
 import java.util.Properties;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import net.qing.sms.simulator.SmsSimulatorConfigure;
 import eet.evar.base.DataFormatDeal;
@@ -16,7 +17,7 @@ import io.netty.buffer.ByteBuf;
 
 public class CMPPSubmitResp extends CMPPHeader {
 	private final static int MAX_SEQ = 2 << 16;;
-	private static volatile int seq = 0;
+	private static AtomicInteger seq = new AtomicInteger(1);
 	private static int mscgId = Integer.parseInt(getProperties().getProperty("cmpp.mscg.id"));
 	private byte[] msgId = new byte[8];// 8
 	private int result=0;// 1
@@ -55,7 +56,7 @@ public class CMPPSubmitResp extends CMPPHeader {
 		DataFormatDeal.fillBinaryArray(bitsMsgId, mscgIdBytes[1], 34, 8);
 		DataFormatDeal.fillBinaryArray(bitsMsgId, mscgIdBytes[0], 42, 6);
 		//printByte(bitsMsgId);
-		byte[] seqBytes = DataFormatDeal.intTobyte(seq++, 2);
+		byte[] seqBytes = DataFormatDeal.intTobyte(seq.incrementAndGet(), 2);
 		DataFormatDeal.fillBinaryArray(bitsMsgId, seqBytes[0], 48, 8);
 		DataFormatDeal.fillBinaryArray(bitsMsgId, seqBytes[1], 56, 8);
 		StringBuffer strByte = new StringBuffer();
@@ -66,10 +67,6 @@ public class CMPPSubmitResp extends CMPPHeader {
 				strByte.setLength(0);
 			}
 		}
-		if (seq >= MAX_SEQ) {
-			seq = 0;
-		}
-
 	}
 
 	private static Properties getProperties() {

@@ -4,7 +4,7 @@ import io.netty.buffer.ByteBuf;
 
 public class SGIPReport extends SGIPHeader {
 	private byte[] submitSeq;//12
-	private int reportType;//1
+	private int reportType = 0;//1
 	private String userNumber;//21
 	private int state;//1
 	private int errorCode;//1

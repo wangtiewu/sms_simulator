@@ -1,6 +1,7 @@
 package net.qing.sms.simulator;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
@@ -17,11 +18,14 @@ import java.net.SocketAddress;
 import java.net.URL;
 import java.net.URLDecoder;
 import java.text.MessageFormat;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import net.qing.sms.simulator.SchedulerKey.Type;
 import net.qing.sms.simulator.cmpp.CMPPActiveTestResp;
@@ -37,6 +41,7 @@ import net.qing.sms.simulator.cmpp.CMPPSendDelivery;
 import eet.evar.StringDeal;
 import eet.evar.base.DataFormatDeal;
 import eet.evar.tool.MD5;
+import eet.evar.tool.PseuRandom;
 import eet.evar.tool.logger.Logger;
 import eet.evar.tool.logger.LoggerFactory;
 import eet.evar.tool.ratelimiting.TokenBucket;
@@ -48,9 +53,11 @@ public class CMPP2SimulatorHandler extends ChannelInboundHandlerAdapter {
 			.getLogger(CMPP2SimulatorHandler.class);
 	public static final AttributeKey<String> ICP_ID = AttributeKey
 			.<String> valueOf("ICP_ID");// 请求client对象
-	private final ConcurrentHashMap<String, CancelableScheduler> statusDeliverySchedulers = new ConcurrentHashMap<String, CancelableScheduler>();
-	private final ConcurrentHashMap<String, Integer> connections = new ConcurrentHashMap<String, Integer>();
+	public static final ConcurrentHashMap<String, CancelableScheduler> statusDeliverySchedulers = new ConcurrentHashMap<String, CancelableScheduler>();
+	public static final ConcurrentHashMap<String, List<Channel>> connections = new ConcurrentHashMap<String, List<Channel>>();
 	private static Queue<DeliveryReq> deliverQueue = new ConcurrentLinkedDeque<DeliveryReq>();
+	private static AtomicInteger reportCount = new AtomicInteger();
+	private static AtomicInteger reportSuccessCount = new AtomicInteger();
 	Properties smsProperties = getProperties();
 	TokenBucket submitTokenBucket = TokenBuckets
 			.builder()
@@ -178,16 +185,29 @@ public class CMPP2SimulatorHandler extends ChannelInboundHandlerAdapter {
 				}
 				int configedConnections = Integer.parseInt(smsProperties
 						.getProperty("cmpp.client.connections", "1"));
-				int curConnections = connections.get(configedICPId) == null ? 0
-						: connections.get(configedICPId);
-				if (curConnections >= configedConnections) {
-					CMPPConnectResp cmppConnectResp = new CMPPConnectResp(
-							cmppHeader.getSeq());
-					cmppConnectResp.setStatus(5);
-					cmppConnectResp.setVersion(Integer.parseInt(smsProperties
-							.getProperty("cmpp.version")));
-					respMsg(false, ctx, cmppConnectResp);
-					return;
+				int curConnections = 0;
+				List<Channel> channels = null;
+				synchronized (connections) {
+					channels = connections.get(configedICPId);
+					if (channels != null) {
+						curConnections = channels.size();
+					}
+					if (curConnections >= configedConnections) {
+						CMPPConnectResp cmppConnectResp = new CMPPConnectResp(
+								cmppHeader.getSeq());
+						cmppConnectResp.setStatus(5);
+						cmppConnectResp.setVersion(Integer
+								.parseInt(smsProperties
+										.getProperty("cmpp.version")));
+						respMsg(false, ctx, cmppConnectResp);
+						return;
+					} else {
+						if (channels == null) {
+							channels = new ArrayList<Channel>();
+							connections.put(configedICPId, channels);
+						}
+						channels.add(ctx.channel());
+					}
 				}
 				CMPPConnectResp cmppConnectResp = new CMPPConnectResp(
 						cmppHeader.getSeq());
@@ -206,10 +226,17 @@ public class CMPP2SimulatorHandler extends ChannelInboundHandlerAdapter {
 				cmppConnectResp.setVersion(cmppConnect.getVersion());
 				respMsg(ctx, cmppConnectResp);
 				ctx.channel().attr(ICP_ID).set(configedICPId);
-				connections.put(configedICPId, curConnections + 1);
-				CancelableScheduler statusDeliveryScheduler = new HashedWheelScheduler();
-				statusDeliverySchedulers.put(getIpAndPort(ctx.channel()
-						.remoteAddress()), statusDeliveryScheduler);
+				CancelableScheduler statusDeliveryScheduler = statusDeliverySchedulers
+						.get(configedICPId);
+				if (statusDeliveryScheduler == null) {
+					synchronized (statusDeliverySchedulers) {
+						if (statusDeliveryScheduler == null) {
+							statusDeliveryScheduler = new HashedWheelScheduler();
+							statusDeliverySchedulers.put(configedICPId,
+									statusDeliveryScheduler);
+						}
+					}
+				}
 				break;
 			case CMPPHeader.CMPP_ACTIVE_TEST:
 				respMsg(ctx, new CMPPActiveTestResp(cmppHeader.getSeq()));
@@ -236,6 +263,7 @@ public class CMPP2SimulatorHandler extends ChannelInboundHandlerAdapter {
 					return;
 				}
 				if (!submitTokenBucket.tryConsume()) {
+					logger.error("流量超过阀值");
 					CMPPSubmitResp resp = new CMPPSubmitResp(
 							cmppHeader.getSeq());
 					resp.setResult(8);
@@ -245,23 +273,41 @@ public class CMPP2SimulatorHandler extends ChannelInboundHandlerAdapter {
 				CMPPSubmitResp submitResp = new CMPPSubmitResp(
 						cmppHeader.getSeq());
 				respMsg(ctx, submitResp);
+				String lostReport = smsProperties
+						.getProperty("cmpp.report.lost", "0");
+				int iLostReport = Integer.valueOf(lostReport);
 				if (submit.getRegisteredDelivery() == 1) {
+					if (iLostReport > 0) {
+						int lostIdx = 1000 / iLostReport;
+						lostIdx = lostIdx <= 0 ? 1 : lostIdx;
+						if (reportCount.incrementAndGet() % lostIdx == 0) {
+							return;
+						}
+					}
 					// 需要状态报告
+					String icpId = ctx.channel().attr(ICP_ID).get();
 					CancelableScheduler statusDeliveryScheduler1 = statusDeliverySchedulers
-							.get(getIpAndPort(ctx.channel().remoteAddress()));
-					statusDeliveryScheduler1
-							.schedule(
-									new SchedulerKey(Type.STATUS_REPORT, ""
-											+ cmppHeader.getSeq()),
-									new CMPPSendDelivery(ctx,
-											submitResp.getMsgId(), submit
-													.getSrcId(), submit
-													.getDestTerminalId(),
-											submit.getServiceId()), 5,
-									TimeUnit.SECONDS);
+							.get(icpId);
+					statusDeliveryScheduler1.schedule(
+							new SchedulerKey(Type.STATUS_REPORT, ""
+									+ cmppHeader.getSeq()),
+							new CMPPSendDelivery(ctx, submitResp.getMsgId(),
+									submit.getSrcId(), submit
+											.getDestTerminalId(), submit
+											.getServiceId()), (new PseuRandom(0)).random(2),
+							TimeUnit.SECONDS);
 				}
 				break;
 			case CMPPHeader.CMPP_DELIVER_RESP:
+				if (reportSuccessCount.incrementAndGet() % 10000 == 0) {
+					logger.error("reportSuccessCount:" + reportSuccessCount.incrementAndGet()
+							+ ", seq:" + cmppHeader.getSeq());
+				}
+				String icpId = ctx.channel().attr(ICP_ID).get();
+				CancelableScheduler statusDeliveryScheduler1 = statusDeliverySchedulers
+						.get(icpId);
+				statusDeliveryScheduler1.cancel(new SchedulerKey(
+						Type.STATUS_REPORT, "" + cmppHeader.getSeq()));
 				break;
 			case CMPPHeader.CMPP_TERMINATE:
 				CMPPTerminateResp cmppTerminateResp = new CMPPTerminateResp(
@@ -306,22 +352,28 @@ public class CMPP2SimulatorHandler extends ChannelInboundHandlerAdapter {
 
 	@Override
 	public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-		String ipPort = getIpAndPort(ctx.channel().remoteAddress());
-		if (ipPort != null) {
-			CancelableScheduler statusDeliveryScheduler = statusDeliverySchedulers
-					.remove(ipPort);
-			if (statusDeliveryScheduler != null) {
-				statusDeliveryScheduler.shutdown();
-				statusDeliveryScheduler = null;
+		String icpId = ctx.channel().attr(ICP_ID).get();
+		if (icpId != null) {
+			synchronized (connections) {
+				List<Channel> channels = connections.get(icpId);
+				if (channels != null) {
+					if (channels.remove(ctx.channel())) {
+						logger.error(MessageFormat.format("{0} 连接 {1} 已从连接表删除",
+								icpId, ctx.channel().remoteAddress()));
+					}
+				} else {
+					// CancelableScheduler statusDeliveryScheduler =
+					// statusDeliverySchedulers
+					// .remove(icpId);
+					// if (statusDeliveryScheduler != null) {
+					// statusDeliveryScheduler.shutdown();
+					// statusDeliveryScheduler = null;
+					// }
+				}
 			}
 		}
-		String icpId = ctx.channel().attr(ICP_ID).get();
-		Integer connectionCount = connections.remove(icpId);
-		if (connectionCount != null && connectionCount > 1) {
-			connections.put(icpId, connectionCount - 1);
-		}
-		logger.info(MessageFormat.format("{0} 连接 {1} 已断开", icpId, ctx.channel()
-				.remoteAddress()));
+		logger.error(MessageFormat.format("{0} 连接 {1} 已断开", icpId, ctx
+				.channel().remoteAddress()));
 	}
 
 	private void respMsg(ChannelHandlerContext ctx, CMPPHeader respMsg) {

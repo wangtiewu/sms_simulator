@@ -33,6 +33,7 @@ import net.qing.sms.simulator.sgip.SGIPSendDelivery;
 import net.qing.sms.simulator.sgip.SGIPSendReport;
 import net.qing.sms.simulator.sgip.SGIPSubmit;
 import net.qing.sms.simulator.sgip.SGIPSubmitResp;
+import net.qing.sms.simulator.sgip.SGIPUnbindResp;
 import net.qing.sms.simulator.sgip.SMGClient;
 import eet.evar.StringDeal;
 import eet.evar.tool.logger.Logger;
@@ -164,6 +165,10 @@ public class SGIPSimulatorHandler extends ChannelInboundHandlerAdapter {
 							statusDeliveryScheduler);
 				}
 				break;
+			case SGIPHeader.SGIP_UNBIND:
+				SGIPUnbindResp unbindResp = new SGIPUnbindResp(sgipHeader.getSeq());
+				respMsgAndClose(ctx, unbindResp);
+				break;
 			case SGIPHeader.SGIP_SUBMIT:
 				checkAndsendDelivery(ctx);
 				SGIPSubmit submit = (SGIPSubmit) sgipHeader;
@@ -204,7 +209,7 @@ public class SGIPSimulatorHandler extends ChannelInboundHandlerAdapter {
 									+ sgipHeader.getSeq()),
 							new SGIPSendReport(submit.getSeq(), submit
 									.getSpNumber(), submit.getUserNumber(),
-									submit.getServiceType(), 1), 5,
+									submit.getServiceType(), 0), 5,
 							TimeUnit.SECONDS);
 				}
 				break;
