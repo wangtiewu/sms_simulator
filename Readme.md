@@ -2,7 +2,7 @@
 
 sms_simulator is a short message service's simulator,this time it supports ChinaMobile CMPP and ChinaUnicom SGIP ISMG function.SP can use this simulator for test.
 
-## ChinaMobile CMPP Features
+## ChinaMobile CMPP/CMPP3 Features
 
 * Supports CMPP's connect,submit,delivery,active_test,terminate instrucs.
 * Supports IP limits,Connections limits,Rate-limits advinced functions.
