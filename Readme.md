@@ -5,12 +5,12 @@ sms_simulator is a short message service's simulator,this time it supports China
 ## ChinaMobile CMPP/CMPP3 Features
 
 * Supports CMPP(CMPP3)'s connect,submit,delivery,active_test,terminate instructs.
-* Supports IP limits,connections limits,rate-limits advinced functions.
+* Supports IP limits,connections limits,rate-limits advinced instructs.
 
 ## ChinaUnicom SGIP Featrues
 
-* Supports SGIP's bind,submit,report,delivery,unbind instrucs.
-* Supports IP limits,connections limits,rate-limits advinced functions.
+* Supports SGIP's bind,submit,report,delivery,unbind instructs.
+* Supports IP limits,connections limits,rate-limits advinced instructs.
 
 ## Configure
 
